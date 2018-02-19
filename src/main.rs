@@ -19,17 +19,22 @@ pub type Result<T> = std::result::Result<T, String>;
 
 #[derive(Serialize)]
 struct AllBlocks {
-    pub volume: <VolumeBlock as Block>::OutputFormat,
-    pub brightness: <BacklightBlock as Block>::OutputFormat,
+    pub volume      : <VolumeBlock    as Block>::OutputFormat,
+    pub brightness  : <BacklightBlock as Block>::OutputFormat,
+    pub wifi        : <WifiBlock      as Block>::OutputFormat,
 }
 
 #[get("/")]
-fn get(vol: State<<VolumeBlock    as Block>::Managed>,
-       bri: State<<BacklightBlock as Block>::Managed>) -> Result<Json<AllBlocks>> {
-    let volume = VolumeBlock::get_info(vol)?;
+fn get(vol:  State<<VolumeBlock    as Block>::Managed>,
+       bri:  State<<BacklightBlock as Block>::Managed>,
+       wifi: State<<WifiBlock      as Block>::Managed>)
+    -> Result<Json<AllBlocks>>
+{
+    let volume     = VolumeBlock::get_info(vol)?;
     let brightness = BacklightBlock::get_info(bri)?;
+    let w          = WifiBlock::get_info(wifi)?;
 
-    Ok(Json(AllBlocks { volume, brightness } ))
+    Ok(Json(AllBlocks { volume, brightness, wifi: w } ))
 }
 
 #[error(404)]
@@ -45,12 +50,16 @@ fn main() {
         .expect("Couldn't load VolumeBlock");
     let bri: BacklightBlock = BacklightBlock::new()
         .expect("Couldn't load BacklightBlock");
+    let wifi: WifiBlock = WifiBlock::new()
+        .expect("Couldn't load WifiBlock");
     rocket::ignite()
-        .mount("/vol", vol.get_routes())
-        .mount("/bri", bri.get_routes())
+        .mount("/volume",     vol.get_routes())
+        .mount("/brightness", bri.get_routes())
+        .mount("/wifi",       wifi.get_routes())
         .mount("/", routes![get])
         .catch(errors![not_found])
         .manage(vol.get_managed())
         .manage(bri.get_managed())
+        .manage(wifi.get_managed())
         .launch();
 }

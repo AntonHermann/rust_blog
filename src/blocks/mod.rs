@@ -1,8 +1,10 @@
 mod volume;
 mod backlight;
+mod wifi;
 
 pub use self::volume::*;
 pub use self::backlight::*;
+pub use self::wifi::*;
 
 use rocket::{self, State};
 use super::Result;
