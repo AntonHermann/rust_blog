@@ -1,65 +1,62 @@
-#![feature(plugin)]
+#![feature(plugin, custom_derive)]
 #![plugin(rocket_codegen)]
 
+extern crate file_server_lib;
 extern crate rocket;
-#[macro_use] extern crate rocket_contrib;
+// #[macro_use] extern crate rocket_contrib;
+extern crate rocket_contrib;
 extern crate serde;
 extern crate serde_json;
-#[macro_use] extern crate serde_derive;
-extern crate inotify;
+// #[macro_use]
+// extern crate serde_derive;
+extern crate itertools;
+extern crate uuid;
+// #[macro_use]
+extern crate diesel;
+extern crate dotenv;
+extern crate chrono;
+extern crate r2d2;
+extern crate r2d2_diesel;
+extern crate tera;
 
-mod blocks;
-
-pub use blocks::*;
-
-use rocket_contrib::{Json, Value};
-use rocket::State;
-
-pub type Result<T> = std::result::Result<T, String>;
-
-#[derive(Serialize)]
-struct AllBlocks {
-    pub volume      : <VolumeBlock    as Block>::OutputFormat,
-    pub brightness  : <BacklightBlock as Block>::OutputFormat,
-    pub wifi        : <WifiBlock      as Block>::OutputFormat,
-}
+use file_server_lib::*;
+use file_server_lib::models::*;
+use rocket_contrib::Template;
+// use std::path::{Path, PathBuf};
+// use rocket::response::NamedFile;
+use rocket::Rocket;
+use tera::Context;
+use diesel::prelude::*;
 
 #[get("/")]
-fn get(vol:  State<<VolumeBlock    as Block>::Managed>,
-       bri:  State<<BacklightBlock as Block>::Managed>,
-       wifi: State<<WifiBlock      as Block>::Managed>)
-    -> Result<Json<AllBlocks>>
-{
-    let volume     = VolumeBlock::get_info(vol)?;
-    let brightness = BacklightBlock::get_info(bri)?;
-    let w          = WifiBlock::get_info(wifi)?;
+fn index(conn: DbConn) -> Template {
+    use schema::posts::dsl::*;
+    use schema::users::dsl::*;
 
-    Ok(Json(AllBlocks { volume, brightness, wifi: w } ))
+    let mut context = Context::new();
+
+    let post_list = posts.load::<Post>(&*conn).expect("error loading posts");
+    let user_list = users.load::<User>(&*conn).expect("error loading posts");
+
+    context.add("posts", &post_list);
+    context.add("users", &user_list);
+
+    Template::render("test", context)
 }
 
-#[error(404)]
-fn not_found() -> Json<Value> {
-    Json(json!({
-        "status": "error",
-        "reason": "Resource was not found."
-    }))
+
+/// build the rocket
+fn rocket() -> Rocket {
+    rocket::ignite()
+        .attach(Template::fairing())
+        .manage(init_pool())
+        .mount("/", auth::routes())
+        .mount("/blog", blog::routes())
+        .mount("/", routes![index])
+        .mount("/", static_files::routes())
+        .catch(static_files::err())
 }
 
 fn main() {
-    let vol: VolumeBlock = VolumeBlock::new()
-        .expect("Couldn't load VolumeBlock");
-    let bri: BacklightBlock = BacklightBlock::new()
-        .expect("Couldn't load BacklightBlock");
-    let wifi: WifiBlock = WifiBlock::new()
-        .expect("Couldn't load WifiBlock");
-    rocket::ignite()
-        .mount("/volume",     vol.get_routes())
-        .mount("/brightness", bri.get_routes())
-        .mount("/wifi",       wifi.get_routes())
-        .mount("/", routes![get])
-        .catch(errors![not_found])
-        .manage(vol.get_managed())
-        .manage(bri.get_managed())
-        .manage(wifi.get_managed())
-        .launch();
+    rocket().launch();
 }

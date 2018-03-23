@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>Blog</title>
+    </head>
+    <body>
+        <h1>blog entry - {{ title }}</h1>
+        <h2>by user {{ user }}</h2>
+        <p>{{ content }}</p>
+    </body>
+</html>
